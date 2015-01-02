@@ -40,6 +40,7 @@ void JournalTool::usage()
   std::cout << "Usage: \n"
     << "  cephfs-journal-tool [options] journal [inspect|import|export|reset]\n"
     << "  cephfs-journal-tool [options] header <get|set <field> <value>\n"
+    << "  cephfs-journal-tool [options] table reset <session|ino|snap>\n"
     << "  cephfs-journal-tool [options] event <effect> <selector> <output>\n"
     << "    <selector>:\n"
     << "      --range=<start>..<end>\n"
