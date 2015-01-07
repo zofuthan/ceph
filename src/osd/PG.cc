@@ -3691,7 +3691,6 @@ void PG::replica_scrub(
  */
 void PG::scrub(epoch_t queued, ThreadPool::TPHandle &handle)
 {
-  lock();
   if (g_conf->osd_scrub_sleep > 0 &&
       (scrubber.state == PG::Scrubber::NEW_CHUNK ||
        scrubber.state == PG::Scrubber::INACTIVE)) {
@@ -3704,7 +3703,6 @@ void PG::scrub(epoch_t queued, ThreadPool::TPHandle &handle)
     dout(20) << __func__ << " slept for " << t << dendl;
   }
   if (deleting || pg_has_reset_since(queued)) {
-    unlock();
     return;
   }
   assert(scrub_queued);
@@ -3716,7 +3714,6 @@ void PG::scrub(epoch_t queued, ThreadPool::TPHandle &handle)
     state_clear(PG_STATE_REPAIR);
     state_clear(PG_STATE_DEEP_SCRUB);
     publish_stats_to_osd();
-    unlock();
     return;
   }
 
@@ -3747,8 +3744,6 @@ void PG::scrub(epoch_t queued, ThreadPool::TPHandle &handle)
   }
 
   chunky_scrub(handle);
-
-  unlock();
 }
 
 /*
