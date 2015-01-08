@@ -16,6 +16,8 @@
 #include "common/errno.h"
 
 #include "mds/SessionMap.h"
+#include "mds/InoTable.h"
+#include "mds/SnapServer.h"
 
 #include "TableTool.h"
 
@@ -99,6 +101,10 @@ int TableTool::main(std::vector<const char*> &argv)
     jf.open_object_section("ranks");
     if (table == "session") {
       r = apply_rank_fn(&TableTool::_show_session_table, &jf);
+    } else if (table == "inode") {
+      r = apply_rank_fn(&TableTool::_show_ino_table, &jf);
+    } else if (table == "snap") {
+      r = _show_snap_table(&jf);
     } else {
       derr << "Invalid table '" << table << "'" << dendl;
       usage();
@@ -108,6 +114,7 @@ int TableTool::main(std::vector<const char*> &argv)
 
     // Subcommand should have written to formatter, flush it
     jf.flush(std::cout);
+    std::cout << std::endl;
     return r;
   } else {
     derr << "Invalid mode '" << mode << "'" << dendl;
@@ -229,35 +236,75 @@ int TableTool::apply_rank_fn(int (TableTool::*fptr) (mds_rank_t, Formatter*), Fo
 }
 
 
-/**
- * Read sessiontable and dump to stdout
- */
+template <typename A>
+class LoadAndDump
+{
+private:
+  std::string object_name;
+  bool mds_table;
+
+public:
+  LoadAndDump(mds_rank_t rank, std::string const &name, bool mds_table_)
+  {
+    // Compose object name of the table we will dump
+    std::ostringstream oss;
+    oss << "mds";
+    if (rank != MDS_RANK_NONE) {
+      oss << rank;
+    }
+    oss << "_" << name;
+    object_name = oss.str();
+    mds_table = mds_table_;
+  }
+
+  int load_and_dump(librados::IoCtx *io, Formatter *f)
+  {
+    assert(io != NULL);
+    assert(f != NULL);
+
+    // Attempt read
+    bufferlist table_bl;
+    int read_r = io->read(object_name, table_bl, (1<<22), 0);
+    if (read_r >= 0) {
+      bufferlist::iterator q = table_bl.begin();
+      try {
+        if (mds_table) {
+          version_t version;
+          ::decode(version, q);
+          f->dump_int("version", version);
+        }
+        A table_inst;
+        table_inst.decode(q);
+        table_inst.dump(f);
+
+        return 0;
+      } catch (buffer::error &e) {
+        derr << "table " << object_name << " is corrupt" << dendl;
+        return -EIO;
+      }
+    } else {
+      derr << "error reading table object " << object_name
+        << ": " << cpp_strerror(read_r) << dendl;
+      return read_r;
+    }
+  }
+};
+
+
 int TableTool::_show_session_table(mds_rank_t rank, Formatter *f)
 {
-  // Compose object ID
-  bufferlist sessiontable_bl;
-  std::ostringstream oss;
-  oss << "mds" << rank << "_sessionmap";
-  const std::string sessiontable_oid = oss.str();
+  return LoadAndDump<SessionMapStore>(rank, "sessionmap", false).load_and_dump(&io, f);
+}
 
-  // Attempt read
-  int read_r = io.read(sessiontable_oid, sessiontable_bl, (1<<22), 0);
-  if (read_r >= 0) {
-    bufferlist::iterator q = sessiontable_bl.begin();
-    try {
-      SessionMapStore sms;
-      sms.decode(q);
-      sms.dump(f);
+int TableTool::_show_ino_table(mds_rank_t rank, Formatter *f)
+{
+  LoadAndDump<InoTable> dumper(rank, "inotable", true);
+  return dumper.load_and_dump(&io, f);
+}
 
-      return 0;
-    } catch (buffer::error &e) {
-      derr << "sessionmap " << sessiontable_oid << " is corrupt" << dendl;
-      return -EIO;
-    }
-  } else {
-    derr << "error reading sessionmap object " << sessiontable_oid
-      << ": " << cpp_strerror(read_r) << dendl;
-    return read_r;
-  }
+int TableTool::_show_snap_table(Formatter *f)
+{
+  LoadAndDump<SnapServer> dumper(MDS_RANK_NONE, "snaptable", true);
+  return dumper.load_and_dump(&io, f);
 }
 

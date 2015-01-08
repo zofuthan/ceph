@@ -35,6 +35,10 @@ class TableTool : public MDSUtility
     int _reset_session_table(mds_rank_t rank, Formatter *f);
     int _show_session_table(mds_rank_t rank, Formatter *f);
 
+    int _show_ino_table(mds_rank_t rank, Formatter *f);
+
+    int _show_snap_table(Formatter *f);
+
   public:
     void usage();
     TableTool() :
