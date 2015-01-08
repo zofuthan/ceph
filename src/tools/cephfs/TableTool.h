@@ -30,8 +30,10 @@ class TableTool : public MDSUtility
     librados::Rados rados;
     librados::IoCtx io;
 
-    int _reset_session_table(mds_rank_t rank);
-    int reset_session_table();
+    int apply_rank_fn(int (TableTool::*fptr) (mds_rank_t, Formatter *), Formatter *f);
+
+    int _reset_session_table(mds_rank_t rank, Formatter *f);
+    int _show_session_table(mds_rank_t rank, Formatter *f);
 
   public:
     void usage();

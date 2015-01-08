@@ -15,6 +15,8 @@
 #include "common/ceph_argparse.h"
 #include "common/errno.h"
 
+#include "mds/SessionMap.h"
+
 #include "TableTool.h"
 
 
@@ -52,12 +54,6 @@ int TableTool::main(std::vector<const char*> &argv)
     }
   }
 
-  // Require 2 args <action> <table>
-  if (argv.size() < 2) {
-    usage();
-    return -EINVAL;
-  }
-
   // RADOS init
   // ==========
   r = rados.init_with_context(g_ceph_context);
@@ -82,18 +78,37 @@ int TableTool::main(std::vector<const char*> &argv)
   r = rados.ioctx_create(pool_name.c_str(), io);
   assert(r == 0);
 
-  const std::string mode = std::string(*arg);
-  arg = argv.erase(arg);
+  // Require 2 args <action> <table>
+  if (argv.size() < 2) {
+    usage();
+    return -EINVAL;
+  }
+  const std::string mode = std::string(argv[0]);
+  const std::string table = std::string(argv[1]);
 
   if (mode == "reset") {
-    const std::string table = std::string(*arg);
     if (table == "session") {
-      return reset_session_table();
+      return apply_rank_fn(&TableTool::_reset_session_table, NULL);
     } else {
       derr << "Invalid table '" << table << "'" << dendl;
       usage();
       return -EINVAL;
     }
+  } else if (mode == "show") {
+    JSONFormatter jf(true);
+    jf.open_object_section("ranks");
+    if (table == "session") {
+      r = apply_rank_fn(&TableTool::_show_session_table, &jf);
+    } else {
+      derr << "Invalid table '" << table << "'" << dendl;
+      usage();
+      return -EINVAL;
+    }
+    jf.close_section();
+
+    // Subcommand should have written to formatter, flush it
+    jf.flush(std::cout);
+    return r;
   } else {
     derr << "Invalid mode '" << mode << "'" << dendl;
     usage();
@@ -106,7 +121,7 @@ int TableTool::main(std::vector<const char*> &argv)
 /**
  * Clear a specific MDS rank's session table
  */
-int TableTool::_reset_session_table(mds_rank_t rank)
+int TableTool::_reset_session_table(mds_rank_t rank, Formatter *f)
 {
   int r = 0;
 
@@ -169,27 +184,80 @@ int TableTool::_reset_session_table(mds_rank_t rank)
   return r;
 }
 
+
 /**
- * Clear one or all MDSs' session tables depending
- * on TableTool::rank
+ * For a function that takes an MDS rank as an argument and
+ * returns an error code, execute it either on all ranks (if
+ * this->rank is MDS_RANK_NONE), or on the rank specified
+ * by this->rank.
  */
-int TableTool::reset_session_table()
+int TableTool::apply_rank_fn(int (TableTool::*fptr) (mds_rank_t, Formatter*), Formatter *f)
 {
+  int r = 0;
   if (rank == MDS_RANK_NONE) {
-    int r = 0;
     std::set<mds_rank_t> in_ranks;
     mdsmap->get_mds_set(in_ranks);
 
     for (std::set<mds_rank_t>::iterator rank_i = in_ranks.begin();
         rank_i != in_ranks.end(); ++rank_i)
     {
-      int rank_r = _reset_session_table(*rank_i);
+      if (f) {
+        std::ostringstream rank_str;
+        rank_str << *rank_i;
+        f->open_object_section(rank_str.str().c_str());
+      }
+      int rank_r = (this->*fptr)(*rank_i, f);
       r = r ? r : rank_r;
+      if (f) {
+        f->close_section();
+      }
     }
 
     return r;
   } else {
-    return _reset_session_table(rank);
+    if (f) {
+      std::ostringstream rank_str;
+      rank_str << rank;
+      f->open_object_section(rank_str.str().c_str());
+    }
+    r = (this->*fptr)(rank, f);
+    if (f) {
+      f->close_section();
+    }
+    return r;
+  }
+}
+
+
+/**
+ * Read sessiontable and dump to stdout
+ */
+int TableTool::_show_session_table(mds_rank_t rank, Formatter *f)
+{
+  // Compose object ID
+  bufferlist sessiontable_bl;
+  std::ostringstream oss;
+  oss << "mds" << rank << "_sessionmap";
+  const std::string sessiontable_oid = oss.str();
+
+  // Attempt read
+  int read_r = io.read(sessiontable_oid, sessiontable_bl, (1<<22), 0);
+  if (read_r >= 0) {
+    bufferlist::iterator q = sessiontable_bl.begin();
+    try {
+      SessionMapStore sms;
+      sms.decode(q);
+      sms.dump(f);
+
+      return 0;
+    } catch (buffer::error &e) {
+      derr << "sessionmap " << sessiontable_oid << " is corrupt" << dendl;
+      return -EIO;
+    }
+  } else {
+    derr << "error reading sessionmap object " << sessiontable_oid
+      << ": " << cpp_strerror(read_r) << dendl;
+    return read_r;
   }
 }
 
