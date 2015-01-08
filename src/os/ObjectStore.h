@@ -1589,7 +1589,6 @@ public:
       uint32_t _largest_data_off = 0;
       uint32_t _largest_data_off_in_tbl = 0;
       uint32_t _fadvise_flags = 0;
-      bool tolerate_collection_add_enoent = false;
 
       ::decode(_ops, bl);
       ::decode(_pad_unused_bytes, bl);
@@ -1600,6 +1599,7 @@ public:
       }
       ::decode(tbl, bl);
       if (struct_v >= 7) {
+	bool tolerate_collection_add_enoent = false;
 	::decode(tolerate_collection_add_enoent, bl);
       }
       if (struct_v >= 8) {
