@@ -162,7 +162,7 @@ void SessionMap::_save_finish(version_t v)
 
 // -------------------
 
-void SessionMap::encode(bufferlist& bl) const
+void SessionMapStore::encode(bufferlist& bl) const
 {
   uint64_t pre = -1;     // for 0.19 compatibility; we forgot an encoding prefix.
   ::encode(pre, bl);
@@ -184,7 +184,7 @@ void SessionMap::encode(bufferlist& bl) const
   ENCODE_FINISH(bl);
 }
 
-void SessionMap::decode(bufferlist::iterator& p)
+void SessionMapStore::decode(bufferlist::iterator& p)
 {
   utime_t now = ceph_clock_now(g_ceph_context);
   uint64_t pre;
@@ -234,7 +234,7 @@ void SessionMap::decode(bufferlist::iterator& p)
   }
 }
 
-void SessionMap::dump(Formatter *f) const
+void SessionMapStore::dump(Formatter *f) const
 {
   f->open_array_section("Sessions");
   for (ceph::unordered_map<entity_name_t,Session*>::const_iterator p = session_map.begin();
@@ -253,10 +253,10 @@ void SessionMap::dump(Formatter *f) const
   f->close_section(); // Sessions
 }
 
-void SessionMap::generate_test_instances(list<SessionMap*>& ls)
+void SessionMapStore::generate_test_instances(list<SessionMapStore*>& ls)
 {
   // pretty boring for now
-  ls.push_back(new SessionMap(NULL));
+  ls.push_back(new SessionMapStore());
 }
 
 void SessionMap::wipe()

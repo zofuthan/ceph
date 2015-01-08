@@ -81,6 +81,7 @@ private:
   uint64_t state_seq;
   int importing_count;
   friend class SessionMap;
+  friend class SessionMapStore;
 
 
   // Human (friendly) name is soft state generated from client metadata
@@ -255,25 +256,63 @@ public:
 
 class MDS;
 
-class SessionMap {
+/**
+ * Encapsulate the serialized state associated with SessionMap.  Allows
+ * encode/decode outside of live MDS instance.
+ */
+class SessionMapStore {
+public:
+  ceph::unordered_map<entity_name_t, Session*> session_map;
+  map<int,xlist<Session*>* > by_state;
+  version_t version;
+
+  void encode(bufferlist& bl) const;
+  void decode(bufferlist::iterator& blp);
+  void dump(Formatter *f) const;
+
+  Session* get_or_add_session(const entity_inst_t& i) {
+    Session *s;
+    if (session_map.count(i.name)) {
+      s = session_map[i.name];
+    } else {
+      s = session_map[i.name] = new Session;
+      s->info.inst = i;
+      s->last_cap_renew = ceph_clock_now(g_ceph_context);
+    }
+
+    return s;
+  }
+
+  uint64_t set_state(Session *session, int s) {
+    if (session->state != s) {
+      session->state = s;
+      session->state_seq++;
+      if (by_state.count(s) == 0)
+	by_state[s] = new xlist<Session*>;
+      by_state[s]->push_back(&session->item_session_list);
+    }
+    return session->state_seq;
+  }
+
+  static void generate_test_instances(list<SessionMapStore*>& ls);
+
+  SessionMapStore() : version(0) {}
+};
+
+class SessionMap : public SessionMapStore {
 public:
   MDS *mds;
-private:
-  ceph::unordered_map<entity_name_t, Session*> session_map;
-public:
-  map<int,xlist<Session*>* > by_state;
   
 public:  // i am lazy
-  version_t version, projected, committing, committed;
+  version_t projected, committing, committed;
   map<version_t, list<MDSInternalContextBase*> > commit_waiters;
 
-public:
   SessionMap(MDS *m) : mds(m), 
-		       version(0), projected(0), committing(0), committed(0) 
+		       projected(0), committing(0), committed(0) 
   { }
   
   //for the dencoder
-  SessionMap() : mds(NULL), version(0), projected(0),
+  SessionMap() : mds(NULL), projected(0),
 		 committing(0), committed(0) {}
     
   // sessions
@@ -315,17 +354,7 @@ public:
       return p->second;
     }
   }
-  Session* get_or_add_session(const entity_inst_t& i) {
-    Session *s;
-    if (session_map.count(i.name)) {
-      s = session_map[i.name];
-    } else {
-      s = session_map[i.name] = new Session;
-      s->info.inst = i;
-      s->last_cap_renew = ceph_clock_now(g_ceph_context);
-    }
-    return s;
-  }
+
   void add_session(Session *s);
   void remove_session(Session *s);
   void touch_session(Session *session);
@@ -335,16 +364,7 @@ public:
       return 0;
     return by_state[state]->front();
   }
-  uint64_t set_state(Session *session, int s) {
-    if (session->state != s) {
-      session->state = s;
-      session->state_seq++;
-      if (by_state.count(s) == 0)
-	by_state[s] = new xlist<Session*>;
-      by_state[s]->push_back(&session->item_session_list);
-    }
-    return session->state_seq;
-  }
+
   void dump();
 
   void get_client_set(set<client_t>& s) {
@@ -399,11 +419,6 @@ public:
   // -- loading, saving --
   inodeno_t ino;
   list<MDSInternalContextBase*> waiting_for_load;
-
-  void encode(bufferlist& bl) const;
-  void decode(bufferlist::iterator& blp);
-  void dump(Formatter *f) const;
-  static void generate_test_instances(list<SessionMap*>& ls);
 
   object_t get_object_name();
 
