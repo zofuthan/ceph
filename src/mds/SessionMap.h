@@ -296,6 +296,12 @@ public:
 
   static void generate_test_instances(list<SessionMapStore*>& ls);
 
+  void reset_state()
+  {
+    session_map.clear();
+    by_state.clear();
+  }
+
   SessionMapStore() : version(0) {}
 };
 
