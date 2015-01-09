@@ -29,7 +29,7 @@
 void TableTool::usage()
 {
   std::cout << "Usage: \n"
-    << "  cephfs-table-tool [options] reset <session>"
+    << "  cephfs-table-tool [options] <reset|show> <session|snap|inode>"
     << "\n"
     << "Options:\n"
     << "  --rank=<int>      MDS rank (default: operate on all ranks)\n";
@@ -91,6 +91,10 @@ int TableTool::main(std::vector<const char*> &argv)
   if (mode == "reset") {
     if (table == "session") {
       return apply_rank_fn(&TableTool::_reset_session_table, NULL);
+    } else if (table == "inode") {
+      return apply_rank_fn(&TableTool::_reset_ino_table, NULL);
+    } else if (table == "snap") {
+      return _reset_snap_table();
     } else {
       derr << "Invalid table '" << table << "'" << dendl;
       usage();
@@ -288,6 +292,26 @@ public:
       return read_r;
     }
   }
+
+  int reset(librados::IoCtx *io)
+  {
+    A table_inst;
+    table_inst.reset_state();
+    
+    // Compose new (blank) table
+    bufferlist new_bl;
+    table_inst.encode(new_bl);
+
+    // Write out new table
+    int r = io->write_full(object_name, new_bl);
+    if (r != 0) {
+      derr << "error writing table object " << object_name
+        << ": " << cpp_strerror(r) << dendl;
+      return r;
+    }
+
+    return r;
+  }
 };
 
 
@@ -302,9 +326,22 @@ int TableTool::_show_ino_table(mds_rank_t rank, Formatter *f)
   return dumper.load_and_dump(&io, f);
 }
 
+int TableTool::_reset_ino_table(mds_rank_t rank, Formatter *f)
+{
+  LoadAndDump<InoTable> dumper(rank, "inotable", true);
+  return dumper.reset(&io);
+}
+
 int TableTool::_show_snap_table(Formatter *f)
 {
   LoadAndDump<SnapServer> dumper(MDS_RANK_NONE, "snaptable", true);
   return dumper.load_and_dump(&io, f);
 }
+
+int TableTool::_reset_snap_table()
+{
+  LoadAndDump<SnapServer> dumper(MDS_RANK_NONE, "snaptable", true);
+  return dumper.reset(&io);
+}
+
 
