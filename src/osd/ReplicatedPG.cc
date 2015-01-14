@@ -2792,6 +2792,7 @@ ReplicatedPG::RepGather *ReplicatedPG::trim_object(const hobject_t &coid)
 
 void ReplicatedPG::snap_trimmer(epoch_t queued)
 {
+  unlock();
   if (g_conf->osd_snap_trim_sleep > 0) {
     utime_t t;
     t.set_from_double(g_conf->osd_snap_trim_sleep);
@@ -2802,7 +2803,6 @@ void ReplicatedPG::snap_trimmer(epoch_t queued)
     lock();
   }
   if (deleting || pg_has_reset_since(queued)) {
-    unlock();
     return;
   }
   snap_trim_queued = false;
@@ -2812,7 +2812,6 @@ void ReplicatedPG::snap_trimmer(epoch_t queued)
     if (scrubber.active) {
       dout(10) << " scrubbing, will requeue snap_trimmer after" << dendl;
       scrubber.queue_snap_trim = true;
-      unlock();
       return;
     }
 
@@ -2829,7 +2828,6 @@ void ReplicatedPG::snap_trimmer(epoch_t queued)
     // replica collection trimming
     snap_trimmer_machine.process_event(SnapTrim());
   }
-  unlock();
   return;
 }
 
