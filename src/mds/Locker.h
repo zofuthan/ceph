@@ -38,7 +38,6 @@ class MDiscover;
 class MDiscoverReply;
 class MCacheExpire;
 class MDirUpdate;
-class MDentryUnlink;
 class MLock;
 
 class MClientRequest;
