@@ -617,7 +617,7 @@ void PGBackend::be_compare_scrubmaps(
     }
     if (!cur_inconsistent.empty() || !cur_missing.empty()) {
       list<map<pg_shard_t, ScrubMap *>::const_iterator>::const_iterator i;
-      for (i = auth.begin(); i != auth.end(); i++) {
+      for (i = auth.begin(); i != auth.end(); ++i) {
 	authoritative[*k].push_back((*i)->first);
       }
     }
