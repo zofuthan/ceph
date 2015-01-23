@@ -6501,7 +6501,7 @@ int RGWRados::cls_bucket_list(rgw_bucket& bucket, const string& start, const str
     if (vcurrents[i] != vends[i])
       *is_truncated = true;
   }
-  if (m.size())
+  if (!m.empty())
     *last_entry = m.rbegin()->first;
 
   return 0;
