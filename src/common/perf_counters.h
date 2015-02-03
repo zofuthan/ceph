@@ -114,6 +114,7 @@ private:
   struct perf_counter_data_any_d {
     perf_counter_data_any_d()
       : name(NULL),
+        nick(NULL),
 	type(PERFCOUNTER_NONE),
 	u64(0),
 	avgcount(0),
@@ -121,6 +122,7 @@ private:
     {}
     perf_counter_data_any_d(const perf_counter_data_any_d& other)
       : name(other.name),
+        nick(other.nick),
 	type(other.type),
 	u64(other.u64.read()) {
       pair<uint64_t,uint64_t> a = other.read_avg();
@@ -130,6 +132,7 @@ private:
     }
 
     const char *name;
+    const char *nick;
     enum perfcounter_type_d type;
     atomic64_t u64;
     atomic64_t avgcount;
@@ -146,6 +149,7 @@ private:
 
     perf_counter_data_any_d& operator=(const perf_counter_data_any_d& other) {
       name = other.name;
+      nick = other.nick;
       type = other.type;
       pair<uint64_t,uint64_t> a = other.read_avg();
       u64.set(a.first);
@@ -231,16 +235,16 @@ public:
   PerfCountersBuilder(CephContext *cct, const std::string &name,
 		    int first, int last);
   ~PerfCountersBuilder();
-  void add_u64(int key, const char *name);
-  void add_u64_counter(int key, const char *name);
-  void add_u64_avg(int key, const char *name);
-  void add_time(int key, const char *name);
-  void add_time_avg(int key, const char *name);
+  void add_u64(int key, const char *name, const char *nick=NULL);
+  void add_u64_counter(int key, const char *name, const char *nick=NULL);
+  void add_u64_avg(int key, const char *name, const char *nick=NULL);
+  void add_time(int key, const char *name, const char *nick=NULL);
+  void add_time_avg(int key, const char *name, const char *nick=NULL);
   PerfCounters* create_perf_counters();
 private:
   PerfCountersBuilder(const PerfCountersBuilder &rhs);
   PerfCountersBuilder& operator=(const PerfCountersBuilder &rhs);
-  void add_impl(int idx, const char *name, int ty);
+  void add_impl(int idx, const char *name, const char *nick, int ty);
 
   PerfCounters *m_perf_counters;
 };
