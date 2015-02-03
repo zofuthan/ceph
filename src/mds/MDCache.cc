@@ -11747,18 +11747,18 @@ void MDCache::register_perfcounters()
             "mds_cache", l_mdc_first, l_mdc_last);
 
     /* Stray/purge statistics */
-    pcb.add_u64(l_mdc_num_strays, "num_strays");
+    pcb.add_u64(l_mdc_num_strays, "num_strays", "stry");
     pcb.add_u64(l_mdc_num_strays_purging, "num_strays_purging");
     pcb.add_u64(l_mdc_num_strays_delayed, "num_strays_delayed");
     pcb.add_u64_counter(l_mdc_strays_created, "strays_created");
-    pcb.add_u64_counter(l_mdc_strays_purged, "strays_purged");
+    pcb.add_u64_counter(l_mdc_strays_purged, "strays_purged", "purg");
 
     /* Recovery queue statistics */
     pcb.add_u64(l_mdc_num_recovering_processing, "num_recovering_processing");
-    pcb.add_u64(l_mdc_num_recovering_enqueued, "num_recovering_enqueued");
+    pcb.add_u64(l_mdc_num_recovering_enqueued, "num_recovering_enqueued", "recy");
     pcb.add_u64(l_mdc_num_recovering_prioritized, "num_recovering_prioritized");
     pcb.add_u64_counter(l_mdc_recovery_started, "recovery_started");
-    pcb.add_u64_counter(l_mdc_recovery_completed, "recovery_completed");
+    pcb.add_u64_counter(l_mdc_recovery_completed, "recovery_completed", "recd");
 
     logger = pcb.create_perf_counters();
     g_ceph_context->get_perfcounters_collection()->add(logger);
