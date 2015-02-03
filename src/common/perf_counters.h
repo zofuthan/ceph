@@ -129,9 +129,6 @@ private:
       avgcount2.set(a.second);
     }
 
-    void write_schema_json(char *buf, size_t buf_sz) const;
-    void  write_json(char *buf, size_t buf_sz) const;
-
     const char *name;
     enum perfcounter_type_d type;
     atomic64_t u64;
